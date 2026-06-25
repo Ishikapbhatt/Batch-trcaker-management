@@ -339,17 +339,17 @@
 ### 7. Technical Requirements
 
 #### 7.1 Frontend Technology Stack
-- **Framework:** Next.js 14+ (App Router)
+- **Framework:** React.js 18+
 - **Language:** TypeScript
-- **UI Library:** React
-- **Styling:** Tailwind CSS
-- **Components:** ShadCN UI
-- **State Management:** Zustand / Redux Toolkit
-- **Forms:** React Hook Form + Zod
+- **Styling:** Tailwind CSS + Bootstrap 5
+- **State Management:** Redux Toolkit / Zustand
+- **Forms:** React Hook Form + Yup
 - **Charts:** Recharts / Chart.js
 - **Video Player:** Video.js / Plyr
-- **Rich Text Editor:** TipTap / Slate
+- **Rich Text Editor:** TipTap / Quill
 - **Real-time:** Socket.io Client
+- **Routing:** React Router 6
+- **Build Tool:** Vite
 
 #### 7.2 Backend Technology Stack
 - **Runtime:** Node.js 20+

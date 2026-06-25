@@ -118,10 +118,12 @@ This repository contains complete documentation for building the TIMP platform:
 ## Technology Stack
 
 ### Frontend
-- **Framework:** Next.js 14+ (App Router)
+- **Framework:** React.js 18+
 - **Language:** TypeScript
-- **UI:** React, Tailwind CSS, ShadCN UI
-- **State:** Zustand, React Query
+- **Styling:** Tailwind CSS + Bootstrap 5
+- **State:** Redux Toolkit / Zustand
+- **Routing:** React Router 6
+- **Build Tool:** Vite
 
 ### Backend
 - **Runtime:** Node.js 20+
