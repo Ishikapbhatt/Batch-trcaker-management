@@ -87,6 +87,7 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     institute_id UUID NOT NULL REFERENCES institutes(id) ON DELETE CASCADE,
     branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+    user_id VARCHAR(20) UNIQUE NOT NULL, -- e.g., 1002, 1003
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20),
     password_hash VARCHAR(255) NOT NULL,
@@ -100,7 +101,8 @@ CREATE TABLE users (
     state VARCHAR(100),
     country VARCHAR(100),
     postal_code VARCHAR(20),
-    role VARCHAR(50) NOT NULL, -- super_admin, admin, trainer, student, staff
+    role VARCHAR(50) NOT NULL, -- super_admin, admin, sales, trainer, student, staff
+    core_skills TEXT[], -- For trainers: e.g., ['DevOps', 'AWS', 'Docker', 'Kubernetes']
     status VARCHAR(20) DEFAULT 'active', -- active, inactive, suspended, deleted
     email_verified BOOLEAN DEFAULT FALSE,
     phone_verified BOOLEAN DEFAULT FALSE,
@@ -120,6 +122,7 @@ CREATE TABLE users (
 CREATE INDEX idx_users_institute_id ON users(institute_id);
 CREATE INDEX idx_users_branch_id ON users(branch_id);
 CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_user_id ON users(user_id);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_status ON users(status);
 ```
@@ -184,15 +187,16 @@ CREATE INDEX idx_categories_institute_id ON categories(institute_id);
 CREATE INDEX idx_categories_parent_id ON categories(parent_id);
 ```
 
-### 3.2 Courses Table
+### 3.2 Courses Table (Course Master)
 
 ```sql
 CREATE TABLE courses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id VARCHAR(20) UNIQUE NOT NULL, -- e.g., CRS-001, CRS-002
     institute_id UUID NOT NULL REFERENCES institutes(id) ON DELETE CASCADE,
     category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
-    name VARCHAR(255) NOT NULL,
-    code VARCHAR(50) NOT NULL,
+    name VARCHAR(255) NOT NULL, -- Course name
+    code VARCHAR(50) NOT NULL, -- Course code
     slug VARCHAR(255) NOT NULL,
     description TEXT,
     short_description VARCHAR(500),
@@ -224,6 +228,7 @@ CREATE TABLE courses (
 
 CREATE INDEX idx_courses_institute_id ON courses(institute_id);
 CREATE INDEX idx_courses_category_id ON courses(category_id);
+CREATE INDEX idx_courses_course_id ON courses(course_id);
 CREATE INDEX idx_courses_slug ON courses(slug);
 CREATE INDEX idx_courses_status ON courses(status);
 ```
@@ -362,16 +367,18 @@ CREATE INDEX idx_question_banks_institute_id ON question_banks(institute_id);
 
 ## 4. Batch Management Tables
 
-### 4.1 Batches Table
+### 4.1 Batches Table (Batch Master)
 
 ```sql
 CREATE TABLE batches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    batch_id VARCHAR(20) UNIQUE NOT NULL, -- e.g., BB-001, BB-002
     institute_id UUID NOT NULL REFERENCES institutes(id) ON DELETE CASCADE,
     branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
     course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    code VARCHAR(50) NOT NULL,
+    course_code VARCHAR(50) NOT NULL, -- Reference to course code
+    name VARCHAR(255) NOT NULL, -- Batch name
+    code VARCHAR(50) NOT NULL, -- Batch code
     description TEXT,
     start_date DATE NOT NULL,
     end_date DATE,
@@ -379,6 +386,7 @@ CREATE TABLE batches (
     enrolled_count INTEGER DEFAULT 0,
     timing VARCHAR(50), -- morning, evening, weekend, custom
     custom_timing VARCHAR(100),
+    schedule_type VARCHAR(20) DEFAULT 'weekday', -- weekday, weekend, custom
     mode VARCHAR(20) DEFAULT 'online', -- online, offline, hybrid
     class_days VARCHAR(100), -- mon-fri, sat-sun, custom
     primary_trainer_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -399,8 +407,10 @@ CREATE TABLE batches (
 CREATE INDEX idx_batches_institute_id ON batches(institute_id);
 CREATE INDEX idx_batches_branch_id ON batches(branch_id);
 CREATE INDEX idx_batches_course_id ON batches(course_id);
-CREATE INDEX idx_batches_primary_trainer_id ON batches(primary_trainer_id);
+CREATE INDEX idx_batches_batch_id ON batches(batch_id);
 CREATE INDEX idx_batches_status ON batches(status);
+CREATE INDEX idx_batches_course_code ON batches(course_code);
+CREATE INDEX idx_batches_primary_trainer_id ON batches(primary_trainer_id);
 CREATE INDEX idx_batches_dates ON batches(start_date, end_date);
 ```
 
@@ -411,6 +421,7 @@ CREATE TABLE batch_students (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     batch_id UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
     student_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    enrollment_id VARCHAR(50) UNIQUE NOT NULL, -- e.g., bb-bbstud-01, bb-bbstud-02
     enrollment_date DATE NOT NULL,
     enrollment_status VARCHAR(20) DEFAULT 'active', -- active, completed, dropped, transferred
     completion_date DATE,
@@ -425,6 +436,7 @@ CREATE TABLE batch_students (
 
 CREATE INDEX idx_batch_students_batch_id ON batch_students(batch_id);
 CREATE INDEX idx_batch_students_student_id ON batch_students(student_id);
+CREATE INDEX idx_batch_students_enrollment_id ON batch_students(enrollment_id);
 CREATE INDEX idx_batch_students_status ON batch_students(enrollment_status);
 ```
 
@@ -460,6 +472,75 @@ CREATE INDEX idx_batch_schedules_batch_id ON batch_schedules(batch_id);
 CREATE INDEX idx_batch_schedules_trainer_id ON batch_schedules(trainer_id);
 CREATE INDEX idx_batch_schedules_date ON batch_schedules(scheduled_date);
 CREATE INDEX idx_batch_schedules_status ON batch_schedules(status);
+```
+
+### 4.4 Batch Trainer Table (Batch-Trainer Assignment)
+
+```sql
+CREATE TABLE batch_trainers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    batch_id UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+    trainer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) DEFAULT 'primary', -- primary, secondary, guest
+    assigned_date DATE NOT NULL,
+    assigned_by UUID REFERENCES users(id),
+    status VARCHAR(20) DEFAULT 'active', -- active, inactive, removed
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(batch_id, trainer_id)
+);
+
+CREATE INDEX idx_batch_trainers_batch_id ON batch_trainers(batch_id);
+CREATE INDEX idx_batch_trainers_trainer_id ON batch_trainers(trainer_id);
+CREATE INDEX idx_batch_trainers_status ON batch_trainers(status);
+```
+
+### 4.5 Batch Plan Table (Topic-wise Syllabus)
+
+```sql
+CREATE TABLE batch_plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    batch_id UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    holiday_list JSONB, -- Array of holiday dates with descriptions
+    syllabus JSONB NOT NULL, -- Topic-wise syllabus structure
+    -- Example syllabus structure:
+    -- {
+    --   "topics": [
+    --     {
+    --       "topic_id": "T001",
+    --       "topic_name": "Introduction to DevOps",
+    --       "duration_hours": 4,
+    --       "module_id": "uuid",
+    --       "lesson_ids": ["uuid1", "uuid2"],
+    --       "order": 1
+    --     },
+    --     {
+    --       "topic_id": "T002",
+    --       "topic_name": "Linux Basics",
+    --       "duration_hours": 8,
+    --       "module_id": "uuid",
+    --       "lesson_ids": ["uuid3", "uuid4", "uuid5"],
+    --       "order": 2
+    --     }
+    --   ]
+    -- }
+    total_topics INTEGER DEFAULT 0,
+    total_hours INTEGER DEFAULT 0,
+    completed_topics INTEGER DEFAULT 0,
+    completed_hours INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'draft', -- draft, active, completed, paused
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES users(id),
+    updated_by UUID REFERENCES users(id)
+);
+
+CREATE INDEX idx_batch_plans_batch_id ON batch_plans(batch_id);
+CREATE INDEX idx_batch_plans_dates ON batch_plans(start_date, end_date);
+CREATE INDEX idx_batch_plans_status ON batch_plans(status);
 ```
 
 ---
