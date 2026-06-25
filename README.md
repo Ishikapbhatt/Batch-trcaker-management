@@ -134,8 +134,8 @@ This repository contains complete documentation for building the TIMP platform:
 ### Cloud Infrastructure
 - **Provider:** AWS
 - **Compute:** ECS (Fargate)
-- **Database:** RDS PostgreSQL
-- **Storage:** S3
+- **Database:** External PostgreSQL (DigitalOcean/Railway/Neon)
+- **Storage:** External Storage (MinIO/Backblaze B2/Wasabi)
 - **CDN:** CloudFront
 - **Monitoring:** CloudWatch
 
@@ -159,21 +159,21 @@ This repository contains complete documentation for building the TIMP platform:
 
 ## Team Requirements
 
-### Average Team Size: 9.4 people
-- Backend Developers: 3-4
-- Frontend Developers: 3-4
+### Average Team Size: 7 people
+- Backend Developers: 2-3
+- Frontend Developers: 2-3
 - DevOps Engineer: 1
-- QA Engineers: 1-2
+- QA Engineer: 0-1
 - AI/ML Engineer: 1 (Phase 4)
 - Mobile Developer: 1 (Phase 4)
 - Tech Lead: 1 (50%)
 - Product Manager: 1 (50%)
 
-### Total Cost: ~$1.36M
-- Personnel: $1.125M (83%)
-- Infrastructure: $93,720 (7%)
-- Third-Party: $6,750 (0.5%)
-- Mobile Apps: $248,000 (included in personnel)
+### Total Cost: ~$1.04M
+- Personnel: $840,000 (81%)
+- Infrastructure: $87,375 (8.4%)
+- Third-Party: $6,750 (0.7%)
+- Mobile Apps: Included in personnel
 
 ## Getting Started
 

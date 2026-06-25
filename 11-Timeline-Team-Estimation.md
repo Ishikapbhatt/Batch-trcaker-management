@@ -333,76 +333,38 @@ This document provides detailed timeline estimates and team size requirements fo
 
 ### Phase 1: Foundation (Months 1-3)
 
-**Team Size:** 6 people
+**Team Size:** 5 people
 
 | Role | Count | Allocation |
 |------|-------|------------|
 | Backend Developer | 2 | 100% |
 | Frontend Developer | 2 | 100% |
 | DevOps Engineer | 1 | 100% |
-| QA Engineer | 1 | 50% |
 | Tech Lead | 1 | 50% |
 
-**Total Person-Months:** 18
+**Total Person-Months:** 15
 
 ---
 
 ### Phase 2: MVP Core Features (Months 4-6)
 
-**Team Size:** 9 people
+**Team Size:** 7 people
 
 | Role | Count | Allocation |
 |------|-------|------------|
 | Backend Developer | 3 | 100% |
 | Frontend Developer | 3 | 100% |
 | DevOps Engineer | 1 | 100% |
-| QA Engineer | 2 | 100% |
 | Tech Lead | 1 | 50% |
 | Product Manager | 1 | 50% |
 
-**Total Person-Months:** 27
+**Total Person-Months:** 21
 
 ---
 
 ### Phase 3: Enhanced Features (Months 7-9)
 
-**Team Size:** 10 people
-
-| Role | Count | Allocation |
-|------|-------|------------|
-| Backend Developer | 4 | 100% |
-| Frontend Developer | 4 | 100% |
-| DevOps Engineer | 1 | 100% |
-| QA Engineer | 2 | 100% |
-| Tech Lead | 1 | 50% |
-| Product Manager | 1 | 50% |
-
-**Total Person-Months:** 30
-
----
-
-### Phase 4: Advanced Features (Months 10-12)
-
-**Team Size:** 13 people
-
-| Role | Count | Allocation |
-|------|-------|------------|
-| Backend Developer | 4 | 100% |
-| Frontend Developer | 4 | 100% |
-| DevOps Engineer | 1 | 100% |
-| QA Engineer | 2 | 100% |
-| AI/ML Engineer | 1 | 100% |
-| Mobile Developer | 1 | 100% |
-| Tech Lead | 1 | 50% |
-| Product Manager | 1 | 50% |
-
-**Total Person-Months:** 39
-
----
-
-### Phase 5: Scale & Optimize (Months 13-15)
-
-**Team Size:** 9 people
+**Team Size:** 8 people
 
 | Role | Count | Allocation |
 |------|-------|------------|
@@ -413,7 +375,41 @@ This document provides detailed timeline estimates and team size requirements fo
 | Tech Lead | 1 | 50% |
 | Product Manager | 1 | 50% |
 
+**Total Person-Months:** 24
+
+---
+
+### Phase 4: Advanced Features (Months 10-12)
+
+**Team Size:** 9 people
+
+| Role | Count | Allocation |
+|------|-------|------------|
+| Backend Developer | 3 | 100% |
+| Frontend Developer | 3 | 100% |
+| DevOps Engineer | 1 | 100% |
+| AI/ML Engineer | 1 | 100% |
+| Mobile Developer | 1 | 100% |
+| Tech Lead | 1 | 50% |
+| Product Manager | 1 | 50% |
+
 **Total Person-Months:** 27
+
+---
+
+### Phase 5: Scale & Optimize (Months 13-15)
+
+**Team Size:** 6 people
+
+| Role | Count | Allocation |
+|------|-------|------------|
+| Backend Developer | 2 | 100% |
+| Frontend Developer | 2 | 100% |
+| DevOps Engineer | 1 | 100% |
+| Tech Lead | 1 | 50% |
+| Product Manager | 1 | 50% |
+
+**Total Person-Months:** 18
 
 ---
 
@@ -423,12 +419,12 @@ This document provides detailed timeline estimates and team size requirements fo
 
 | Phase | Duration | Team Size | Person-Months |
 |-------|----------|-----------|--------------|
-| Phase 1 | 3 months | 6 | 18 |
-| Phase 2 | 3 months | 9 | 27 |
-| Phase 3 | 3 months | 10 | 30 |
-| Phase 4 | 3 months | 13 | 39 |
-| Phase 5 | 3 months | 9 | 27 |
-| **Total** | **15 months** | **Average 9.4** | **141** |
+| Phase 1 | 3 months | 5 | 15 |
+| Phase 2 | 3 months | 7 | 21 |
+| Phase 3 | 3 months | 8 | 24 |
+| Phase 4 | 3 months | 9 | 27 |
+| Phase 5 | 3 months | 6 | 18 |
+| **Total** | **15 months** | **Average 7** | **105** |
 
 ---
 
@@ -449,10 +445,10 @@ This document provides detailed timeline estimates and team size requirements fo
 
 ### Total Personnel Cost (15 Months)
 
-Based on average team size of 9.4 people:
+Based on average team size of 7 people:
 
-**Monthly Cost:** ~$75,000  
-**15-Month Cost:** ~$1,125,000
+**Monthly Cost:** ~$56,000  
+**15-Month Cost:** ~$840,000
 
 ---
 
@@ -461,9 +457,9 @@ Based on average team size of 9.4 people:
 | Service | Monthly Cost |
 |---------|--------------|
 | AWS Compute (ECS) | $1,200 |
-| AWS Database (RDS) | $800 |
+| External Database (PostgreSQL) | $400 |
 | AWS Cache (ElastiCache) | $300 |
-| AWS Storage (S3) | $23 |
+| External Storage (MinIO/Backblaze B2) | $50 |
 | AWS CDN (CloudFront) | $85 |
 | AWS Lambda | $20 |
 | AWS API Gateway | $3,500 |
@@ -471,9 +467,9 @@ Based on average team size of 9.4 people:
 | AWS WAF | $30 |
 | AWS Route 53 | $50 |
 | Data Transfer | $90 |
-| **Total** | **$6,248** |
+| **Total** | **$5,825** |
 
-**15-Month Infrastructure Cost:** ~$93,720
+**15-Month Infrastructure Cost:** ~$87,375
 
 ---
 
@@ -496,12 +492,12 @@ Based on average team size of 9.4 people:
 
 | Category | Cost |
 |----------|------|
-| Personnel | $1,125,000 |
-| Infrastructure | $93,720 |
+| Personnel | $840,000 |
+| Infrastructure | $87,375 |
 | Third-Party Services | $6,750 |
 | Tools & Software | $10,000 |
-| Contingency (10%) | $123,547 |
-| **Total** | **$1,359,017** |
+| Contingency (10%) | $94,413 |
+| **Total** | **$1,038,538** |
 
 ---
 

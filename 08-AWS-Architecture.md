@@ -23,13 +23,6 @@ This document provides the complete AWS architecture design for the Training Ins
 │  └──────────────────────────────────────────────────────────┘  │
 │                              │                                   │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │                    LOAD BALANCING LAYER                   │  │
-│  │  ┌────────────────────────────────────────────────────┐   │  │
-│  │  │           Application Load Balancer (ALB)            │   │  │
-│  │  └────────────────────────────────────────────────────┘   │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                              │                                   │
-│  ┌──────────────────────────────────────────────────────────┐  │
 │  │                    APPLICATION LAYER                       │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │  │
 │  │  │ Next.js App   │  │ API Gateway  │  │ Lambda       │    │  │
@@ -44,12 +37,12 @@ This document provides the complete AWS architecture design for the Training Ins
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │                     DATA LAYER                              │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │  │
-│  │  │ Amazon RDS   │  │ Amazon Elasti│  │ Amazon Redshift│   │  │
-│  │  │ (PostgreSQL) │  │ cache (Redis)│  │ (Analytics)   │   │  │
+│  │  │ Amazon Elasti│  │ Amazon Redshift│  │ DynamoDB      │    │  │
+│  │  │ cache (Redis)│  │ (Analytics)   │  │ (NoSQL)       │    │  │
 │  │  └──────────────┘  └──────────────┘  └──────────────┘    │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │  │
-│  │  │ Amazon S3    │  │ Amazon EFS   │  │ DynamoDB      │    │  │
-│  │  │ (Storage)    │  │ (Shared File)│  │ (NoSQL)       │    │  │
+│  │  │ Amazon EFS   │  │ External DB  │  │ External Storage│  │  │
+│  │  │ (Shared File)│  │ (PostgreSQL) │  │ (Self-hosted)  │  │
 │  │  └──────────────┘  └──────────────┘  └──────────────┘    │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │                              │                                   │
@@ -93,11 +86,11 @@ This document provides the complete AWS architecture design for the Training Ins
 Hosted Zones:
   - timp.com (Public)
     Records:
-      - @ (A): ALB DNS
-      - www (CNAME): ALB DNS
+      - @ (A): ECS Load Balancer DNS
+      - www (CNAME): ECS Load Balancer DNS
       - api (CNAME): API Gateway
       - cdn (CNAME): CloudFront
-      - *.institutes (CNAME): ALB DNS (multi-tenant)
+      - *.institutes (CNAME): ECS Load Balancer DNS (multi-tenant)
 ```
 
 ---
@@ -139,8 +132,8 @@ Hosted Zones:
 
 ### 2.2 Load Balancing Layer
 
-#### Application Load Balancer (ALB)
-- **Type:** Application Load Balancer
+#### ECS Load Balancing
+- **Type:** Network Load Balancer (NLB)
 - **Scheme:** Internet-facing
 - **Listeners:** HTTP (redirect to HTTPS), HTTPS (443)
 - **Target Groups:**
@@ -304,26 +297,23 @@ Functions:
 
 ### 2.4 Data Layer
 
-#### Amazon RDS (PostgreSQL)
+#### External PostgreSQL Database
 - **Engine:** PostgreSQL 15
-- **Instance Class:** db.r6g.xlarge (memory optimized)
-- **Multi-AZ:** Yes (High availability)
-- **Read Replicas:** 2 (for read scaling)
-- **Storage:** 500 GB GP3 (General Purpose SSD)
-- **Backup:** 7-day retention
+- **Deployment:** Self-hosted or managed database provider (e.g., DigitalOcean, Railway, Neon)
+- **Instance Class:** Based on requirements (4-8 CPU, 16-32 GB RAM)
+- **High Availability:** Yes (via provider or replication)
+- **Read Replicas:** Optional (for read scaling)
+- **Storage:** 500 GB SSD
+- **Backup:** Daily backups with 30-day retention
 - **Encryption:** At rest and in transit
-- **Parameter Groups:** Optimized for PostgreSQL
-- **Performance Insights:** Enabled
+- **Connection Pooling:** PgBouncer or similar
+- **Max connections:** 1000
+- **Idle timeout:** 10 minutes
 
 **Database Schema:**
 - Primary DB: `timp_production`
-- Read Replica 1: `timp_replica_1`
-- Read Replica 2: `timp_replica_2`
-
-**Connection Pooling:**
-- RDS Proxy for connection management
-- Max connections: 1000
-- Idle timeout: 10 minutes
+- Read Replica 1: `timp_replica_1` (optional)
+- Read Replica 2: `timp_replica_2` (optional)
 
 ---
 
@@ -362,8 +352,9 @@ Functions:
 
 ---
 
-#### Amazon S3 (Storage)
-- **Buckets:**
+#### External Storage
+- **Provider:** Self-hosted or storage provider (e.g., MinIO, Backblaze B2, Wasabi)
+- **Buckets/Directories:**
   1. `timp-assets` - Static assets
   2. `timp-videos` - Video content
   3. `timp-documents` - Documents and PDFs
@@ -371,17 +362,17 @@ Functions:
   5. `timp-backups` - Database backups
   6. `timp-logs` - Application logs
 
-**Bucket Policies:**
+**Storage Policies:**
 - Public read for assets bucket
 - Private for other buckets
 - CORS configuration
-- Versioning enabled
-- Lifecycle policies
+- Versioning enabled (if supported)
+- Lifecycle policies (if supported)
 
 **Lifecycle Rules:**
-- Videos: Move to Glacier after 90 days
+- Videos: Archive after 90 days
 - Logs: Delete after 30 days
-- Backups: Move to Glacier after 7 days
+- Backups: Archive after 7 days
 
 ---
 
@@ -472,36 +463,36 @@ Functions:
 ---
 
 #### Security Groups
-1. **ALB Security Group:**
+1. **NLB Security Group:**
    - Inbound: 80, 443 from 0.0.0.0/0
    - Outbound: All to ECS security group
 
 2. **ECS Security Group:**
-   - Inbound: 3000-3005 from ALB
-   - Outbound: All to RDS, ElastiCache, S3
+   - Inbound: 3000-3005 from NLB
+   - Outbound: All to external database, ElastiCache, external storage
 
-3. **RDS Security Group:**
+3. **External Database Security Group:**
    - Inbound: 5432 from ECS security group
    - Outbound: None
 
 4. **Lambda Security Group:**
    - Inbound: None
-   - Outbound: All to RDS, S3, SQS
+   - Outbound: All to external database, external storage, SQS
 
 ---
 
 #### IAM Roles
 1. **ECS Task Role:**
-   - S3 access (read/write)
-   - RDS access
+   - External storage access (read/write)
+   - External database access
    - ElastiCache access
    - SQS access
    - SNS access
    - CloudWatch Logs access
 
 2. **Lambda Execution Role:**
-   - S3 access
-   - RDS access
+   - External storage access
+   - External database access
    - SQS access
    - SNS access
    - CloudWatch Logs access
@@ -622,8 +613,8 @@ Functions:
 - Standby infrastructure
 
 ### 3.3 Cross-Region Replication
-- **S3:** Cross-region replication
-- **RDS:** Cross-region read replica
+- **External Storage:** Cross-region replication (if supported by provider)
+- **External Database:** Cross-region read replica (if using managed provider)
 - **Route 53:** Failover routing
 - **CloudFront:** Multi-region edge locations
 
@@ -634,8 +625,8 @@ Functions:
 ### 4.1 High Availability
 - **Multi-AZ Deployment:** Services deployed across 3 AZs
 - **Auto Scaling:** Automatic scaling based on demand
-- **Load Balancing:** ALB distributes traffic
-- **Database:** Multi-AZ with automatic failover
+- **Load Balancing:** NLB distributes traffic
+- **Database:** High availability via provider or replication
 - **Cache:** Redis replication with automatic failover
 
 ### 4.2 Disaster Recovery
@@ -705,9 +696,9 @@ Functions:
 | Service | Configuration | Monthly Cost |
 |---------|--------------|--------------|
 | ECS (Fargate) | 10 tasks avg | $1,200 |
-| RDS | db.r6g.xlarge Multi-AZ | $800 |
+| External Database | Managed PostgreSQL | $400 |
 | ElastiCache | cache.r6g.large | $300 |
-| S3 | 1 TB storage | $23 |
+| External Storage | 1 TB storage | $50 |
 | CloudFront | 1 TB transfer | $85 |
 | Lambda | 1M invocations | $20 |
 | API Gateway | 1B requests | $3,500 |
@@ -715,7 +706,7 @@ Functions:
 | WAF | Web firewall | $30 |
 | Route 53 | DNS + health checks | $50 |
 | Data Transfer | 1 TB outbound | $90 |
-| **Total** | | **$6,248** |
+| **Total** | | **$5,825** |
 
 ---
 
@@ -768,8 +759,8 @@ Functions:
 - **Modules:**
   - VPC module
   - ECS module
-  - RDS module
-  - S3 module
+  - External database connection module
+  - External storage connection module
   - Security module
 
 - **State Management:**
@@ -779,7 +770,7 @@ Functions:
 ### 8.2 AWS CDK
 - **Stacks:**
   - Network stack
-  - Database stack
+  - External database connection stack
   - Application stack
   - Monitoring stack
 
@@ -831,8 +822,8 @@ Functions:
 - **API Cache:** API Gateway caching
 
 ### 10.2 Database Optimization
-- **Read Replicas:** Offload read traffic
-- **Connection Pooling:** RDS Proxy
+- **Read Replicas:** Offload read traffic (if using managed provider)
+- **Connection Pooling:** PgBouncer or similar
 - **Query Optimization:** Indexes and query tuning
 - **Partitioning:** Large table partitioning
 
@@ -848,17 +839,17 @@ Functions:
 
 ### 11.1 Horizontal Scaling
 - **ECS Auto Scaling:** Scale based on CPU/memory
-- **RDS Read Replicas:** Scale read capacity
+- **Database Read Replicas:** Scale read capacity (if using managed provider)
 - **ElastiCache:** Scale cache capacity
 - **API Gateway:** Auto-scales
 
 ### 11.2 Vertical Scaling
 - **Instance Sizing:** Right-size instances
-- **Database:** Upgrade instance class
+- **Database:** Upgrade instance class (if using managed provider)
 - **Storage:** Increase storage capacity
 
 ### 11.3 Traffic Management
-- **Load Balancing:** ALB distributes traffic
+- **Load Balancing:** NLB distributes traffic
 - **Auto Scaling:** Scale based on demand
 - **Rate Limiting:** WAF rate limiting
 - **Circuit Breakers:** Prevent cascading failures
@@ -875,9 +866,9 @@ Functions:
 - **Phase 5:** Cutover
 
 ### 12.2 Data Migration
-- **DMS (Database Migration Service):** Database migration
-- **S3 Transfer:** Large file transfer
-- **Snowball:** Petabyte-scale transfer
+- **Database Migration:** pg_dump/pg_restore or provider migration tools
+- **Storage Transfer:** Rsync or provider migration tools
+- **Large File Transfer:** Aspera or similar (if needed)
 
 ---
 
@@ -899,7 +890,7 @@ Functions:
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                    Application Load Balancer (ALB)                     │  │
+│  │              Network Load Balancer (NLB)                             │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                         │

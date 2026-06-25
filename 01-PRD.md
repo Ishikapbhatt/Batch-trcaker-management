@@ -359,7 +359,7 @@
 - **API:** RESTful + GraphQL (optional)
 - **Authentication:** JWT + Passport.js
 - **Real-time:** Socket.io
-- **File Upload:** Multer + AWS S3
+- **File Upload:** Multer + External Storage (MinIO/Backblaze B2)
 - **Video Processing:** FFmpeg (optional)
 - **Queue:** Bull / Redis
 - **Caching:** Redis
@@ -371,16 +371,16 @@
 - **Search Engine:** Elasticsearch (optional)
 
 #### 7.4 Cloud Infrastructure (AWS)
-- **Compute:** EC2 / ECS / Lambda
-- **Database:** RDS (PostgreSQL)
-- **Storage:** S3 (videos, documents)
+- **Compute:** ECS / Lambda
+- **Database:** External PostgreSQL (DigitalOcean/Railway/Neon)
+- **Storage:** External Storage (MinIO/Backblaze B2/Wasabi)
 - **CDN:** CloudFront
-- **Load Balancer:** ALB / NLB
+- **Load Balancer:** NLB
 - **Container Registry:** ECR
 - **Monitoring:** CloudWatch
 - **Logging:** CloudWatch Logs
 - **Security:** VPC, Security Groups, WAF
-- **CI/CD:** CodePipeline / GitHub Actions
+- **CI/CD:** GitHub Actions
 
 #### 7.5 Third-Party Integrations
 - **Video Conferencing:** Zoom API, Google Meet API
