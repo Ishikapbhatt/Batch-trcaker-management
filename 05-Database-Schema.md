@@ -455,7 +455,7 @@ CREATE TABLE batch_schedules (
     end_time TIME NOT NULL,
     location VARCHAR(255),
     meeting_link VARCHAR(500),
-    meeting_platform VARCHAR(50), -- zoom, google_meet, teams, custom
+    meeting_platform VARCHAR(50), -- zoom, google_meet, custom
     meeting_id VARCHAR(255),
     trainer_id UUID REFERENCES users(id) ON DELETE SET NULL,
     status VARCHAR(20) DEFAULT 'scheduled', -- scheduled, in_progress, completed, cancelled

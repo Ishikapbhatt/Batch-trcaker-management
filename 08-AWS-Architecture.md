@@ -16,21 +16,21 @@ This document provides the complete AWS architecture design for the Training Ins
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │                    EDGE LAYER                              │  │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │  │
-│  │  │ Route 53     │  │ CloudFront   │  │ AWS WAF      │    │  │
-│  │  │ (DNS)        │  │ (CDN)        │  │ (Firewall)    │    │  │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘    │  │
+│  │  ┌──────────────┐                                         │  │
+│  │  │ Route 53     │                                         │  │
+│  │  │ (DNS)        │                                         │  │
+│  │  └──────────────┘                                         │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │                              │                                   │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │                    APPLICATION LAYER                       │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │  │
 │  │  │ Next.js App   │  │ API Gateway  │  │ Lambda       │    │  │
-│  │  │ (ECS/Fargate)│  │ (REST/GraphQL)│  │ (Serverless) │    │  │
+│  │  │ (EC2)        │  │ (REST/GraphQL)│  │ (Serverless) │    │  │
 │  │  └──────────────┘  └──────────────┘  └──────────────┘    │  │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │  │
 │  │  │ Auth Service │  │ Video Service│  │ AI Service   │    │  │
-│  │  │ (ECS)        │  │ (ECS)        │  │ (ECS/SageMaker)│   │  │
+│  │  │ (EC2)        │  │ (EC2)        │  │ (EC2/SageMaker)│   │  │
 │  │  └──────────────┘  └──────────────┘  └──────────────┘    │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │                              │                                   │
@@ -86,96 +86,20 @@ This document provides the complete AWS architecture design for the Training Ins
 Hosted Zones:
   - timp.com (Public)
     Records:
-      - @ (A): ECS Load Balancer DNS
-      - www (CNAME): ECS Load Balancer DNS
+      - @ (A): EC2 Elastic IP
+      - www (CNAME): EC2 Elastic IP
       - api (CNAME): API Gateway
-      - cdn (CNAME): CloudFront
-      - *.institutes (CNAME): ECS Load Balancer DNS (multi-tenant)
+      - *.institutes (CNAME): EC2 Elastic IP (multi-tenant)
 ```
 
 ---
 
-#### CloudFront (CDN)
-- **Static Assets:** CSS, JS, images, fonts
-- **Video Streaming:** HLS/DASH video delivery
-- **Dynamic Content:** Cache API responses
-- **Geo-Restriction:** Content access control
-- **Signed URLs:** Secure content delivery
+### 2.2 Application Layer
 
-**Distribution Types:**
-1. **Web Distribution:** Static assets and API caching
-2. **RTMP Distribution:** Live streaming (future)
-3. **MediaPackage:** Video on demand
-
-**Cache Behaviors:**
-- Static assets: 1 year cache
-- API responses: 5 minutes cache
-- Videos: 24 hours cache
-- Authenticated content: No cache
-
----
-
-#### AWS WAF (Web Application Firewall)
-- **Rule Groups:**
-  - AWS Managed Rule Set
-  - IP Reputation List
-  - SQL Injection Protection
-  - XSS Protection
-  - Rate Limiting Rules
-- **Custom Rules:**
-  - Block specific countries
-  - Rate limit per IP
-  - Block suspicious patterns
-- **Bot Control:** Manage bot traffic
-
----
-
-### 2.2 Load Balancing Layer
-
-#### ECS Load Balancing
-- **Type:** Network Load Balancer (NLB)
-- **Scheme:** Internet-facing
-- **Listeners:** HTTP (redirect to HTTPS), HTTPS (443)
-- **Target Groups:**
-  - Next.js Frontend
-  - API Services
-  - WebSocket connections
-- **Health Checks:** TCP/HTTP health checks
-- **SSL/TLS:** ACM certificates
-- **Sticky Sessions:** Enabled for WebSocket
-
-**Configuration:**
-```yaml
-Listeners:
-  - Port: 80 (HTTP)
-    Action: Redirect to 443
-  - Port: 443 (HTTPS)
-    Action: Forward to target groups
-    Certificates: ACM (*.timp.com)
-
-Target Groups:
-  - Frontend (Next.js)
-    Protocol: HTTP
-    Port: 3000
-    Health Check: /health
-  - API Services
-    Protocol: HTTP
-    Port: 3001
-    Health Check: /api/health
-  - WebSocket
-    Protocol: HTTP
-    Port: 3002
-    Health Check: /socket.io/health
-```
-
----
-
-### 2.3 Application Layer
-
-#### ECS (Elastic Container Service)
-- **Cluster:** `timp-production`
-- **Launch Type:** Fargate (serverless)
-- **Task Definitions:**
+#### EC2 Instances
+- **AMI:** Amazon Linux 2023
+- **Launch Type:** On-demand / Reserved
+- **Services Deployed:**
   1. **Frontend Service** (Next.js)
   2. **API Gateway Service**
   3. **Auth Service**
@@ -184,54 +108,43 @@ Target Groups:
   6. **Notification Service**
   7. **Worker Service**
 
-**Frontend Service (Next.js):**
+**Frontend Server (Next.js):**
 ```yaml
-Task Definition:
-  Family: timp-frontend
-  CPU: 512
-  Memory: 1024
-  Container:
-    Image: timp/frontend:latest
-    Port: 3000
-    Environment:
-      - NODE_ENV: production
-      - API_URL: https://api.timp.com
-      - CDN_URL: https://cdn.timp.com
-    Secrets:
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-  Auto Scaling:
-    Min: 2
-    Max: 10
-    Target CPU: 70%
+EC2 Instance:
+  Name: timp-frontend
+  Instance Type: t3.medium (2 vCPU, 4 GB RAM)
+  Count: 2
+  Port: 3000
+  Environment:
+    - NODE_ENV: production
+    - API_URL: https://api.timp.com
+  Secrets:
+    - AWS_ACCESS_KEY_ID
+    - AWS_SECRET_ACCESS_KEY
 ```
 
-**API Services:**
+**API Servers:**
 ```yaml
-Task Definitions:
-  - API Gateway:
-      CPU: 256
-      Memory: 512
+EC2 Instances:
+  - API Gateway Server:
+      Instance Type: t3.small (2 vCPU, 2 GB RAM)
       Port: 3001
-      Auto Scaling: Min: 2, Max: 20
+      Count: 2
   
-  - Auth Service:
-      CPU: 256
-      Memory: 512
+  - Auth Service Server:
+      Instance Type: t3.small (2 vCPU, 2 GB RAM)
       Port: 3002
-      Auto Scaling: Min: 2, Max: 10
+      Count: 2
   
-  - Video Service:
-      CPU: 1024
-      Memory: 2048
+  - Video Service Server:
+      Instance Type: c5.xlarge (4 vCPU, 8 GB RAM)
       Port: 3003
-      Auto Scaling: Min: 1, Max: 5
+      Count: 1
   
-  - AI Service:
-      CPU: 2048
-      Memory: 4096
+  - AI Service Server:
+      Instance Type: c5.2xlarge (8 vCPU, 16 GB RAM)
       Port: 3004
-      Auto Scaling: Min: 1, Max: 3
+      Count: 1
 ```
 
 ---
@@ -383,7 +296,7 @@ Functions:
 - **Mount Targets:** 3 (one per AZ)
 
 **Use Cases:**
-- Shared file storage for ECS tasks
+- Shared file storage across EC2 instances
 - Temporary file processing
 - Video transcoding workspace
 
@@ -456,23 +369,23 @@ Functions:
   - Database: 10.0.20.0/24, 10.0.21.0/24, 10.0.22.0/24
 
 **Subnet Groups:**
-- Public subnets: ALB, NAT Gateway
-- Private subnets: ECS, Lambda
+- Public subnets: EC2 instances (frontend), NAT Gateway
+- Private subnets: EC2 instances (API services), Lambda
 - Database subnets: RDS, ElastiCache
 
 ---
 
 #### Security Groups
-1. **NLB Security Group:**
+1. **EC2 Frontend Security Group:**
    - Inbound: 80, 443 from 0.0.0.0/0
-   - Outbound: All to ECS security group
+   - Outbound: All to EC2 API security group, external storage
 
-2. **ECS Security Group:**
-   - Inbound: 3000-3005 from NLB
+2. **EC2 API Security Group:**
+   - Inbound: 3001-3005 from EC2 Frontend security group
    - Outbound: All to external database, ElastiCache, external storage
 
 3. **External Database Security Group:**
-   - Inbound: 5432 from ECS security group
+   - Inbound: 5432 from EC2 API security group
    - Outbound: None
 
 4. **Lambda Security Group:**
@@ -482,13 +395,15 @@ Functions:
 ---
 
 #### IAM Roles
-1. **ECS Task Role:**
+1. **EC2 Instance Role:**
    - External storage access (read/write)
    - External database access
    - ElastiCache access
    - SQS access
    - SNS access
    - CloudWatch Logs access
+   - Secrets Manager access
+   - SSM Parameter Store access
 
 2. **Lambda Execution Role:**
    - External storage access
@@ -496,10 +411,6 @@ Functions:
    - SQS access
    - SNS access
    - CloudWatch Logs access
-
-3. **EC2 Role (if needed):**
-   - S3 access
-   - CloudWatch access
 
 ---
 
@@ -616,16 +527,15 @@ Functions:
 - **External Storage:** Cross-region replication (if supported by provider)
 - **External Database:** Cross-region read replica (if using managed provider)
 - **Route 53:** Failover routing
-- **CloudFront:** Multi-region edge locations
+- **AMI Replication:** Copy EC2 AMIs to secondary region
 
 ---
 
 ## 4. High Availability & Disaster Recovery
 
 ### 4.1 High Availability
-- **Multi-AZ Deployment:** Services deployed across 3 AZs
-- **Auto Scaling:** Automatic scaling based on demand
-- **Load Balancing:** NLB distributes traffic
+- **Multi-AZ Deployment:** EC2 instances deployed across multiple AZs
+- **Traffic Routing:** Route 53 routes traffic to EC2 instances
 - **Database:** High availability via provider or replication
 - **Cache:** Redis replication with automatic failover
 
@@ -654,11 +564,11 @@ Functions:
 - **NAT Gateway:** Outbound internet access
 
 ### 5.2 Application Security
-- **WAF:** Web application firewall
-- **HTTPS:** TLS encryption in transit
+- **HTTPS:** TLS encryption in transit (via Nginx/Certbot on EC2)
 - **Authentication:** JWT + OAuth
 - **Authorization:** RBAC
 - **Input Validation:** API Gateway validation
+- **Security Groups:** Restrict access between tiers
 
 ### 5.3 Data Security
 - **Encryption at Rest:** KMS encryption
@@ -678,12 +588,11 @@ Functions:
 ## 6. Cost Optimization
 
 ### 6.1 Cost-Saving Strategies
-- **Reserved Instances:** RDS reserved instances
+- **Reserved Instances:** EC2 + RDS reserved instances
 - **Savings Plans:** Compute savings plans
-- **Spot Instances:** Non-critical workloads
+- **Spot Instances:** Non-critical worker EC2 instances
 - **S3 Lifecycle:** Move to Glacier
-- **Auto Scaling:** Scale down during low traffic
-- **Right Sizing:** Optimize instance sizes
+- **Right Sizing:** Optimize EC2 instance types
 
 ### 6.2 Cost Monitoring
 - **Cost Explorer:** Track costs
@@ -695,70 +604,25 @@ Functions:
 
 | Service | Configuration | Monthly Cost |
 |---------|--------------|--------------|
-| ECS (Fargate) | 10 tasks avg | $1,200 |
+| EC2 Instances | 10 instances avg (mixed types) | $1,500 |
 | External Database | Managed PostgreSQL | $400 |
 | ElastiCache | cache.r6g.large | $300 |
 | External Storage | 1 TB storage | $50 |
-| CloudFront | 1 TB transfer | $85 |
 | Lambda | 1M invocations | $20 |
 | API Gateway | 1B requests | $3,500 |
 | CloudWatch | Logs + metrics | $100 |
-| WAF | Web firewall | $30 |
 | Route 53 | DNS + health checks | $50 |
 | Data Transfer | 1 TB outbound | $90 |
-| **Total** | | **$5,825** |
+| **Total** | | **$6,010** |
 
 ---
 
-## 7. CI/CD Pipeline
+## 7. Infrastructure as Code
 
-### 7.1 CodePipeline
-- **Source:** GitHub
-- **Build:** AWS CodeBuild
-- **Deploy:** AWS CodeDeploy
-- **Stages:**
-  1. Source (GitHub)
-  2. Build (CodeBuild)
-  3. Test (CodeBuild)
-  4. Deploy to Staging (CodeDeploy)
-  5. Manual Approval
-  6. Deploy to Production (CodeDeploy)
-
-### 7.2 CodeBuild
-- **Build Environment:**
-  - Node.js 20
-  - Docker
-  - TypeScript
-
-- **Build Steps:**
-  1. Install dependencies
-  2. Run linter
-  3. Run unit tests
-  4. Build application
-  5. Build Docker image
-  6. Push to ECR
-  7. Run integration tests
-
-### 7.3 ECR (Elastic Container Registry)
-- **Repositories:**
-  - `timp/frontend`
-  - `timp/api-gateway`
-  - `timp/auth-service`
-  - `timp/video-service`
-  - `timp/ai-service`
-
-- **Lifecycle Policies:**
-  - Keep last 30 images
-  - Delete untagged images
-
----
-
-## 8. Infrastructure as Code
-
-### 8.1 Terraform
+### 7.1 Terraform
 - **Modules:**
   - VPC module
-  - ECS module
+  - EC2 module
   - External database connection module
   - External storage connection module
   - Security module
@@ -767,7 +631,7 @@ Functions:
   - S3 backend for state
   - State locking with DynamoDB
 
-### 8.2 AWS CDK
+### 7.2 AWS CDK
 - **Stacks:**
   - Network stack
   - External database connection stack
@@ -778,9 +642,9 @@ Functions:
 
 ---
 
-## 9. Monitoring & Alerting
+## 8. Monitoring & Alerting
 
-### 9.1 CloudWatch Dashboards
+### 8.1 CloudWatch Dashboards
 - **Application Dashboard:**
   - Request rate
   - Error rate
@@ -813,13 +677,13 @@ Functions:
 
 ---
 
-## 10. Performance Optimization
+## 9. Performance Optimization
 
 ### 10.1 Caching Strategy
-- **CDN:** CloudFront for static assets
 - **Application Cache:** Redis for sessions and data
 - **Database Cache:** Query result caching
 - **API Cache:** API Gateway caching
+- **Nginx Cache:** Static asset caching on EC2 via Nginx
 
 ### 10.2 Database Optimization
 - **Read Replicas:** Offload read traffic (if using managed provider)
@@ -827,36 +691,35 @@ Functions:
 - **Query Optimization:** Indexes and query tuning
 - **Partitioning:** Large table partitioning
 
-### 10.3 CDN Optimization
-- **Edge Locations:** Global content delivery
-- **Cache Policies:** Optimized cache rules
-- **Compression:** Gzip/Brotli compression
-- **Image Optimization:** CloudFront image optimization
+### 10.3 Static Asset Delivery
+- **Nginx:** Serve static assets directly from EC2
+- **Compression:** Gzip/Brotli compression via Nginx
+- **Caching Headers:** Browser caching with long TTLs for versioned assets
+- **S3 Backup:** Store static assets in S3 as origin
 
 ---
 
-## 11. Scalability Strategy
+## 10. Scalability Strategy
 
-### 11.1 Horizontal Scaling
-- **ECS Auto Scaling:** Scale based on CPU/memory
+### 10.1 Horizontal Scaling
+- **EC2 Instances:** Add more instances manually as needed
 - **Database Read Replicas:** Scale read capacity (if using managed provider)
 - **ElastiCache:** Scale cache capacity
 - **API Gateway:** Auto-scales
 
-### 11.2 Vertical Scaling
-- **Instance Sizing:** Right-size instances
+### 10.2 Vertical Scaling
+- **EC2 Instance Sizing:** Upgrade to larger instance types
 - **Database:** Upgrade instance class (if using managed provider)
-- **Storage:** Increase storage capacity
+- **Storage:** Increase EBS volume sizes
 
-### 11.3 Traffic Management
-- **Load Balancing:** NLB distributes traffic
-- **Auto Scaling:** Scale based on demand
-- **Rate Limiting:** WAF rate limiting
+### 10.3 Traffic Management
+- **Traffic Routing:** Route 53 → EC2 instances
+- **Rate Limiting:** Nginx rate limiting on EC2
 - **Circuit Breakers:** Prevent cascading failures
 
 ---
 
-## 12. Migration Strategy
+## 11. Migration Strategy
 
 ### 12.1 Phased Migration
 - **Phase 1:** Infrastructure setup
@@ -872,7 +735,7 @@ Functions:
 
 ---
 
-## 13. Architecture Diagram (Visual)
+## 12. Architecture Diagram (Visual)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -881,16 +744,8 @@ Functions:
                                         │
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                │
-│  │   Route 53   │───▶│  CloudFront  │───▶│    AWS WAF   │                │
-│  │     DNS       │    │     CDN       │    │   Firewall   │                │
-│  └──────────────┘    └──────────────┘    └──────────────┘                │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                        │
-                                        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │              Network Load Balancer (NLB)                             │  │
+│  │                     Route 53 (DNS)                                   │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                         │
@@ -898,13 +753,16 @@ Functions:
                     │                   │                   │
                     ▼                   ▼                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │           EC2 Instances (Nginx Reverse Proxy + Node.js)              │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │  Next.js     │  │ API Gateway  │  │   Lambda     │  │   Socket.io  │  │
-│  │  (ECS)       │  │   (REST)     │  │  Functions   │  │   (ECS)      │  │
+│  │  Next.js     │  │   Lambda     │  │   Socket.io  │  │ Auth Service │  │
+│  │  (EC2)       │  │  Functions   │  │   (EC2)      │  │   (EC2)      │  │
 │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ Auth Service │  │Video Service │  │  AI Service  │  │ Notification │  │
-│  │   (ECS)      │  │   (ECS)      │  │   (ECS)      │  │  Service     │  │
+│  │Video Service │  │  AI Service  │  │ Notification │  │Worker Service│  │
+│  │   (EC2)      │  │   (EC2)      │  │  Service     │  │   (EC2)      │  │
 │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
                     │                   │                   │
@@ -941,24 +799,23 @@ Functions:
 
 ---
 
-## 14. Summary
+## 13. Summary
 
 This AWS architecture provides:
 
-- **High Availability:** Multi-AZ deployment with automatic failover
-- **Scalability:** Auto-scaling for compute and storage
-- **Security:** Multiple layers of security (network, application, data)
-- **Performance:** CDN, caching, and optimized database
-- **Cost Optimization:** Reserved instances, auto-scaling, right-sizing
-- **Disaster Recovery:** Multi-region setup with backup strategies
+- **High Availability:** Multi-AZ EC2 deployment
+- **Scalability:** Vertical scaling + manual horizontal scaling
+- **Security:** Security Groups, NACLs, TLS via Nginx
+- **Performance:** Redis caching, Nginx static serving, optimized database
+- **Cost Optimization:** Reserved instances, spot instances, right-sizing
+- **Disaster Recovery:** Multi-region setup with AMI replication
 - **Monitoring:** Comprehensive monitoring and alerting
 - **Compliance:** SOC 2, GDPR, HIPAA ready
-- **Estimated Monthly Cost:** ~$6,248 for production
+- **Estimated Monthly Cost:** ~$6,010 for production
 
 The architecture is designed to support:
 - 10,000+ concurrent users
 - 50,000+ total students
 - 99.9% uptime SLA
-- Global content delivery
 - Real-time analytics
 - AI/ML workloads
